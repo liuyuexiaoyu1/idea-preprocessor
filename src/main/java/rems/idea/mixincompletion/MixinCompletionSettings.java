@@ -5,38 +5,44 @@ import com.intellij.openapi.components.PersistentStateComponent;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
+import com.intellij.openapi.components.Service.Level;
 import org.jetbrains.annotations.NotNull;
 
-@Service(Service.Level.APP)
-@State(name = "MixinDescriptorCompletionSettings",
-        storages = @Storage("mixinDescriptorCompletion.xml"))
-public final class MixinCompletionSettings
-        implements PersistentStateComponent<MixinCompletionSettings.SettingsState> {
-    public static final class SettingsState {
-        public boolean autoInsertPreprocessorComment = true;
-    }
+@Service({Level.APP})
+@State(
+   name = "MixinDescriptorCompletionSettings",
+   storages = {@Storage("mixinDescriptorCompletion.xml")}
+)
+public final class MixinCompletionSettings implements PersistentStateComponent<MixinCompletionSettings.SettingsState> {
+   private SettingsState state = new SettingsState();
 
-    private SettingsState state = new SettingsState();
+   static MixinCompletionSettings getInstance() {
+      return (MixinCompletionSettings)ApplicationManager.getApplication().getService(MixinCompletionSettings.class);
+   }
 
-    static MixinCompletionSettings getInstance() {
-        return ApplicationManager.getApplication().getService(MixinCompletionSettings.class);
-    }
+   boolean isAutoInsertPreprocessorComment() {
+      return this.state.autoInsertPreprocessorComment;
+   }
 
-    boolean isAutoInsertPreprocessorComment() {
-        return state.autoInsertPreprocessorComment;
-    }
+   void setAutoInsertPreprocessorComment(boolean enabled) {
+      this.state.autoInsertPreprocessorComment = enabled;
+   }
 
-    void setAutoInsertPreprocessorComment(boolean enabled) {
-        state.autoInsertPreprocessorComment = enabled;
-    }
+   public @NotNull SettingsState getState() {
+      SettingsState var10000 = this.state;
 
-    @Override
-    public @NotNull SettingsState getState() {
-        return state;
-    }
+      return var10000;
+   }
 
-    @Override
-    public void loadState(@NotNull SettingsState state) {
-        this.state = state;
-    }
+   public void loadState(@NotNull SettingsState state) {
+
+      this.state = state;
+   }
+
+   // $FF: synthetic method
+   
+
+   public static final class SettingsState {
+      public boolean autoInsertPreprocessorComment = true;
+   }
 }

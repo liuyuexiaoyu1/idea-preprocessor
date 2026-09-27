@@ -1,10 +1,9 @@
 <idea-plugin>
-    <id>rems.idea.preprocessor</id>
-    <name>Preprocessor Support</name>
-    <vendor>REMS</vendor>
-    <version>0.31.33</version>
-    <description><![CDATA[
-        <p><b>为使用 ReplayMod Preprocessor 的多版本 Minecraft Mixin 项目提供版本感知的代码补全、跳转和编辑辅助。</b></p>
+  <id>rems.idea.preprocessor</id>
+  <name>Preprocessor Support</name>
+  <vendor>REMS</vendor>
+  <version>0.32.59</version>
+  <description><![CDATA[<p><b>为使用 ReplayMod Preprocessor 的多版本 Minecraft Mixin 项目提供版本感知的代码补全、跳转和编辑辅助。</b></p>
 
         <p>插件会读取当前代码上方的 <code>//#if MC...</code> 或 <code>//#elseif MC...</code> 条件，选择满足条件的版本模块，
         并使用该版本的 <code>build/preprocessed/main/java</code>、<code>src/main/java</code>、Minecraft、Mixin 和 MixinExtras 依赖进行解析。</p>
@@ -45,10 +44,8 @@
             <li>在版本源码或预处理输出中选中完整条件块后，可一键同步到主工程中对应的 <code>src/main/java</code> 文件。</li>
         </ul>
 
-        <p><b>设置位置：</b>Settings | Tools | Preprocessor Support</p>
-    ]]></description>
-    <change-notes><![CDATA[
-        <h3>0.31.33</h3>
+        <p><b>设置位置：</b>Settings | Tools | Preprocessor Support</p>]]></description>
+  <change-notes><![CDATA[<h3>0.31.33</h3>
         <ul>
             <li>插件 ID 更名为 rems.idea.preprocessor，与新项目名称一致。</li>
         </ul>
@@ -211,57 +208,92 @@
             <li>支持多行 <code>//$$</code> 注解属性跳转，包括 <code>validators</code>、<code>categories</code>、<code>options</code> 和 <code>strict</code>。</li>
             <li>预处理指令与比较运算符候选显示用途说明，并支持动态版本代码补全。</li>
             <li>改进条件版本中的字段、方法、静态导入常量及源码用法跳转。</li>
-        </ul>
-    ]]></change-notes>
-    <idea-version since-build="253"/>
-    <depends>com.intellij.modules.platform</depends>
-    <depends>com.intellij.java</depends>
-    <extensions defaultExtensionNs="com.intellij">
-        <completion.contributor language="JAVA"
-                                implementationClass="rems.idea.mixincompletion.MixinDescriptorCompletionContributor"/>
-        <typedHandler implementation="rems.idea.mixincompletion.MixinCommentTypedHandler" order="first"/>
-        <completion.confidence language="JAVA"
-                               implementationClass="rems.idea.mixincompletion.MixinCommentCompletionConfidence"
-                               order="first"/>
-        <lookup.charFilter implementation="rems.idea.mixincompletion.MixinCompletionCharFilter"
-                           order="first"/>
-        <psi.referenceContributor language="JAVA"
-                                  implementation="rems.idea.mixincompletion.MixinCommentReferenceContributor"/>
-        <annotator language="JAVA"
-                   implementationClass="rems.idea.mixincompletion.MixinCommentSyntaxAnnotator"/>
-        <editorFactoryListener implementation="rems.idea.mixincompletion.MixinCommentImmediateHighlighter"/>
-        <enterHandlerDelegate implementation="rems.idea.mixincompletion.PreprocessorEnterHandler" order="first"/>
-        <applicationConfigurable id="rems.idea.mixincompletion.settings"
-                                 displayName="Preprocessor Support"
-                                 instance="rems.idea.mixincompletion.MixinCompletionConfigurable"/>
-        <localInspection language="JAVA"
-                         shortName="MixinCommentInjectSignature"
-                         displayName="Mixin comment Inject method signature"
-                         groupName="Mixin"
-                         enabledByDefault="true"
-                         level="WARNING"
-                         implementationClass="rems.idea.mixincompletion.MixinCommentInjectSignatureInspection"/>
-    </extensions>
-    <actions>
-        <action id="rems.idea.mixincompletion.WrapWithPreprocessor"
-                class="rems.idea.mixincompletion.WrapWithPreprocessorAction"
-                text="Wrap with MC Preprocessor"
-                description="Add //#if, //$$ line prefixes, and //#endif to the selected code">
-            <add-to-group group-id="Floating.CodeToolbar"
-                          anchor="before"
-                          relative-to-action="Floating.CodeToolbar.Surround"/>
-            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
-        </action>
-        <action id="rems.idea.mixincompletion.SyncPreprocessorToMainSource"
-                class="rems.idea.mixincompletion.SyncPreprocessorToMainSourceAction"
-                text="Sync to Main src"
-                description="Sync the selected preprocessor block to the matching file in the main src tree">
-            <add-to-group group-id="Floating.CodeToolbar"
-                          anchor="after"
-                          relative-to-action="rems.idea.mixincompletion.WrapWithPreprocessor"/>
-            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
-        </action>
-    </actions>
+        </ul>]]></change-notes>
+  <idea-version since-build="253" />
+  <depends>com.intellij.modules.platform</depends>
+  <depends>com.intellij.java</depends>
+  <!-- The multi-version template is an extension of Minecraft Development's project wizard, so it is only
+       registered when that plugin is there. Kept in a file of its own and made optional for that reason:
+       declaring the dependency outright would stop this plugin loading at all for anyone who does not use
+       that wizard, and registering the extension unconditionally would fail against an extension point that
+       does not exist. -->
+  <depends optional="true" config-file="mcdev.xml">com.demonwav.minecraft-dev</depends>
+  <extensions defaultExtensionNs="com.intellij">
+    <completion.contributor language="JAVA" implementationClass="rems.idea.mixincompletion.VersionedCommentCompletionContributor" order="first" />
+    <completion.contributor language="JAVA" implementationClass="rems.idea.mixincompletion.MixinDescriptorCompletionContributor" />
+    <typedHandler implementation="rems.idea.mixincompletion.MixinCommentTypedHandler" order="first" />
+    <completion.confidence language="JAVA" implementationClass="rems.idea.mixincompletion.MixinCommentCompletionConfidence" order="first" />
+    <lookup.charFilter implementation="rems.idea.mixincompletion.MixinCompletionCharFilter" order="first" />
+    <psi.referenceContributor language="JAVA" implementation="rems.idea.mixincompletion.MixinCommentReferenceContributor" />
+    <annotator language="JAVA" implementationClass="rems.idea.mixincompletion.MixinCommentSyntaxAnnotator" />
+    <annotator language="JAVA" implementationClass="rems.idea.mixincompletion.InactiveCodeAnnotator" />
+    <!-- Colours the names inside inactive code the way the theme colours them in live code, which
+             needs the branch resolved against the version its marker names.
+
+         Registered last on purpose. The platform analysis of the injected fragment runs over the same
+         characters and has no imports to work from - the wrapper it is parsed inside declares none - so it
+         answers "unresolved" for every name a branch borrows from a marker above it and colours them
+         accordingly. Two annotations over one range leave the later one on screen, so the reading that
+         actually resolved the branch has to be the one that arrives last. -->
+    <annotator language="JAVA" implementationClass="rems.idea.mixincompletion.VersionedBlockAnnotator" order="last" />
+    <lang.foldingBuilder language="JAVA" implementationClass="rems.idea.mixincompletion.PreprocessorFoldingBuilder" />
+    <!-- Resources are versioned with the same statement syntax, so folding covers them as well. -->
+    <lang.foldingBuilder language="JSON" implementationClass="rems.idea.mixincompletion.PreprocessorFoldingBuilder" />
+    <lang.foldingBuilder language="Properties" implementationClass="rems.idea.mixincompletion.PreprocessorFoldingBuilder" />
+    <lang.foldingBuilder language="XML" implementationClass="rems.idea.mixincompletion.PreprocessorFoldingBuilder" />
+    <lang.foldingBuilder language="TEXT" implementationClass="rems.idea.mixincompletion.PreprocessorFoldingBuilder" />
+    <multiHostInjector implementation="rems.idea.mixincompletion.PreprocessorLanguageInjector" />
+    <gotoDeclarationHandler implementation="rems.idea.mixincompletion.PreprocessorGotoDeclarationHandler" />
+    <!-- Both of these live one segment deeper than the namespace they were registered under. Written as
+         plain <highlightInfoFilter> and <inspectionSuppressor> they resolve to com.intellij.highlightInfoFilter
+         and com.intellij.inspectionSuppressor, which are extensions the platform does not have - so the two
+         classes were loaded and then never called, and every finding about a branch for another version came
+         through untouched. -->
+    <daemon.highlightInfoFilter implementation="rems.idea.mixincompletion.InactiveCodeFilter" />
+    <!-- Inspections are a pass of their own and never reach the filter above, so code for another
+             version keeps producing them until they are silenced here as well. -->
+    <lang.inspectionSuppressor language="JAVA" implementationClass="rems.idea.mixincompletion.InactiveInspectionSuppressor" />
+    <editorFactoryListener implementation="rems.idea.mixincompletion.MixinCommentImmediateHighlighter" />
+    <!-- Clicking a //$$ or /*$$ marker folds the region it belongs to, and clicking it again opens it. -->
+    <editorFactoryListener implementation="rems.idea.mixincompletion.PreprocessorFoldToggleHandler" />
+    <enterHandlerDelegate implementation="rems.idea.mixincompletion.PreprocessorEnterHandler" order="first" />
+    <applicationConfigurable id="rems.idea.mixincompletion.settings" displayName="Preprocessor Support" instance="rems.idea.mixincompletion.MixinCompletionConfigurable" />
+    <localInspection language="JAVA" shortName="MixinCommentInjectSignature" displayName="Mixin comment Inject method signature" groupName="Mixin" enabledByDefault="true" level="WARNING" implementationClass="rems.idea.mixincompletion.MixinCommentInjectSignatureInspection" />
+    <!-- Tells the Minecraft wizard that a repository of templates exists, so it asks this plugin's provider
+         about it. The wizard asks only the providers its own repository list names. -->
+    <applicationInitializedListener implementation="rems.idea.mixincompletion.template.MultiVersionTemplateRepoInstaller" />
+    <!-- Tells the platform that a carried block is a folding region of its own, so it stops folding it as a
+         block comment - whose placeholder is built from the comment's delimiters, and whose region has the
+         same range as this plugin's, which is what made the plugin's own placeholder text never appear. -->
+    <customFoldingProvider implementation="rems.idea.mixincompletion.PreprocessorFoldingProvider" />
+    <!-- What is said when the template repository cannot be fetched: the wizard answers that with an empty
+         template list, which names no reason at all. -->
+    <notificationGroup id="Preprocessor Template" displayType="BALLOON" />
+  </extensions>
+  <actions>
+    <action id="rems.idea.mixincompletion.WrapWithPreprocessor" class="rems.idea.mixincompletion.WrapWithPreprocessorAction" text="Wrap with MC Preprocessor" description="Add //#if, //$$ line prefixes, and //#endif to the selected code">
+      <add-to-group group-id="Floating.CodeToolbar" anchor="before" relative-to-action="Floating.CodeToolbar.Surround" />
+      <add-to-group group-id="EditorPopupMenu" anchor="last" />
+    </action>
+    <action id="rems.idea.mixincompletion.SyncPreprocessorToMainSource" class="rems.idea.mixincompletion.SyncPreprocessorToMainSourceAction" text="Sync to Main src" description="Sync the selected preprocessor block to the matching file in the main src tree">
+      <add-to-group group-id="Floating.CodeToolbar" anchor="after" relative-to-action="rems.idea.mixincompletion.WrapWithPreprocessor" />
+      <add-to-group group-id="EditorPopupMenu" anchor="last" />
+    </action>
+    <action id="rems.idea.mixincompletion.DumpCompletion" class="rems.idea.mixincompletion.DumpCompletionAction" text="Preprocessor: 导出本处补全" description="在弹窗里显示插件对光标处补全的判断：位置、限定符与算出的条目">
+      <add-to-group group-id="EditorPopupMenu" anchor="last" />
+    </action>
+    <action id="rems.idea.mixincompletion.DumpLineHighlights" class="rems.idea.mixincompletion.DumpLineHighlightsAction" text="Preprocessor: 导出本行高亮" description="把光标所在行上所有高亮区间与颜色键写入 idea.log，用于核对标记高亮的范围">
+      <add-to-group group-id="EditorPopupMenu" anchor="last" />
+    </action>
+    <!-- Reached from the refactor menu, which is what it is: a change to how the project is built rather
+         than to any one file in it. The group is the platform's own and is named here so the platform adds
+         the entry itself, while it is registering actions. -->
+    <action id="rems.idea.mixincompletion.MakeMultiVersion"
+            class="rems.idea.mixincompletion.template.MakeMultiVersionAction"
+            text="转换为多版本项目"
+            description="把当前单版本项目改造成按版本目录组织的多版本项目">
+      <!-- Last in the menu, after everything the platform and other plugins put there. -->
+      <add-to-group group-id="RefactoringMenu" anchor="last" />
+    </action>
+  </actions>
 </idea-plugin>
-
-

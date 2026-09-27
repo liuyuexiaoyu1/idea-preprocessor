@@ -1,0 +1,204 @@
+package rems.idea.mixincompletion;
+
+import com.intellij.lang.folding.CustomFoldingProvider;
+import com.intellij.lang.folding.FoldingDescriptor;
+import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.editor.FoldRegion;
+import com.intellij.openapi.editor.LogicalPosition;
+import com.intellij.openapi.editor.VisualPosition;
+import com.intellij.openapi.editor.event.EditorMouseEvent;
+import com.intellij.openapi.editor.event.EditorMouseEventArea;
+import com.intellij.openapi.util.TextRange;
+import com.intellij.psi.PsiDocumentManager;
+import com.intellij.psi.PsiFile;
+import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+
+import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * What a folded region says while it is closed.
+ *
+ * <p>The placeholder is the whole of what a closed region shows, so it is what a reader sees of code written
+ * for another version. A block marker is a comment and the text standing in for it has to close that comment,
+ * or the rest of the file reads as though it were inside one.
+ */
+public class PreprocessorFoldingTest extends BasePlatformTestCase {
+
+    /** A block of carried code is replaced by a marker that closes itself. */
+    public void testBlockPlaceholderClosesItsOwnMarker() {
+        String placeholder = placeholderOf("""
+                package p;
+                public class Fold {
+                    static void use() {
+                        /*$$ int three = 3;
+                        int four = 4;
+                        $$*/
+                        int live = 5;
+                    }
+                }
+                """);
+
+        assertEquals("/*$$ inactive line 3 $$*/", placeholder);
+    }
+
+    /** A run of carried lines is replaced by the line marker and how many lines it stands for. */
+    public void testLinePlaceholderCountsTheLines() {
+        String placeholder = placeholderOf("""
+                package p;
+                public class Fold {
+                    static void use() {
+                        //$$ int one = 1;
+                        //$$ int two = 2;
+                        int live = 3;
+                    }
+                }
+                """);
+
+        assertEquals("//$$ inactive line 2", placeholder);
+    }
+
+    /** One carried line says one line. */
+    public void testSingleLinePlaceholder() {
+        String placeholder = placeholderOf("""
+                package p;
+                public class Fold {
+                    //$$ int only = 1;
+                    int live = 2;
+                }
+                """);
+
+        assertEquals("//$$ inactive line 1", placeholder);
+    }
+
+    /**
+     * Every character of a marker answers to a click, and nothing else does.
+     *
+     * <p>Four characters, and the click has to be on one of them: this is what decides whether the pointer
+     * over a marker is a hand and whether a click on the line folds it. Holding the click to a shorter run is
+     * what leaves part of a marker dead.
+     */
+    public void testEveryMarkerCharacterResponds() {
+        Document document = documentOf("""
+                //$$ int one = 1;
+                /*$$ int two = 2; $$*/
+                // plain comment
+                int live = 3;
+                """);
+
+        int first = document.getLineStartOffset(0);
+
+        for (int offset = first; offset < first + 4; offset++) {
+            assertTrue("offset " + offset, PreprocessorFoldToggleHandler.onMarker(document, offset));
+        }
+
+        assertFalse("the code beside the marker is not the marker",
+                PreprocessorFoldToggleHandler.onMarker(document, first + 5));
+
+        int block = document.getLineStartOffset(1);
+        assertTrue("the block marker answers", PreprocessorFoldToggleHandler.onMarker(document, block));
+        assertTrue("and so does its closing marker",
+                PreprocessorFoldToggleHandler.onMarker(document, document.getLineEndOffset(1) - 3));
+
+        int plain = document.getLineStartOffset(2);
+        assertFalse("an ordinary comment is not a marker",
+                PreprocessorFoldToggleHandler.onMarker(document, plain));
+    }
+
+    /** The four characters of each marker form, and that a longer run of them is not one. */
+    public void testMarkerForms() {
+        assertTrue(PreprocessorFoldToggleHandler.startsMarker("//$$ int x;", 0));
+        assertTrue(PreprocessorFoldToggleHandler.startsMarker("/*$$int x;$$*/", 0));
+        assertTrue(PreprocessorFoldToggleHandler.startsMarker("/*$$int x;$$*/", 10));
+        assertTrue(PreprocessorFoldToggleHandler.startsMarker("    //$$ x", 4));
+
+        assertFalse(PreprocessorFoldToggleHandler.startsMarker("//$x", 0));
+        assertFalse(PreprocessorFoldToggleHandler.startsMarker("// comment", 0));
+        assertFalse(PreprocessorFoldToggleHandler.startsMarker("/**/", 0));
+        assertFalse("a window that runs past the end is not a marker",
+                PreprocessorFoldToggleHandler.startsMarker("//$$", 1));
+    }
+
+    /** The platform is told about the block form, and not about the line form. */
+    public void testOnlyTheBlockFormIsClaimedAsARegion() {
+        PreprocessorFoldingProvider provider = new PreprocessorFoldingProvider();
+
+        assertTrue(provider.isCustomRegionStart("/*$$ int a = 1;"));
+        assertTrue("indentation is not a difference", provider.isCustomRegionStart("        /*$$"));
+        assertTrue(provider.isCustomRegionEnd("int a = 1;$$*/"));
+
+        assertFalse("a run of carried lines has no end marker to find",
+                provider.isCustomRegionStart("//$$ int a = 1;"));
+        assertFalse(provider.isCustomRegionEnd("//$$ int a = 1;"));
+        assertFalse("an ordinary comment is not a region", provider.isCustomRegionStart("/* ordinary */"));
+
+        assertTrue("carried code is what the file is not being read for", provider.isCollapsedByDefault(""));
+    }
+
+    /** The block's own lines are what the count is of. */
+    public void testTheProviderCountsTheLinesItIsGiven() {
+        PreprocessorFoldingProvider provider = new PreprocessorFoldingProvider();
+
+        assertEquals("/*$$ inactive line 1 $$*/", provider.getPlaceholderText("/*$$ int a = 1; $$*/"));
+        assertEquals("/*$$ inactive line 3 $$*/",
+                provider.getPlaceholderText("/*$$\nint a = 1;\n$$*/"));
+    }
+
+    /** And the platform has it: a provider that is declared and not registered changes nothing. */
+    public void testTheProviderIsRegistered() {
+        boolean found = false;
+
+        for (CustomFoldingProvider provider : CustomFoldingProvider.getAllProviders()) {
+            if (provider instanceof PreprocessorFoldingProvider) {
+                found = true;
+            }
+        }
+
+        assertTrue("the platform knows about the block form", found);
+    }
+
+    /** The placeholder of the region the carried code is in. */
+    private String placeholderOf(String source) {
+        PsiFile file = myFixture.addFileToProject("p/Fold.java", source);
+        Document document = PsiDocumentManager.getInstance(getProject()).getDocument(file);
+        PreprocessorFoldingBuilder builder = new PreprocessorFoldingBuilder();
+        FoldingDescriptor[] regions = builder.buildFoldRegions(file, document, false);
+
+        assertTrue("no region was offered for the carried code", regions.length >= 1);
+
+        String placeholder = null;
+
+        for (FoldingDescriptor region : regions) {
+            // The region this plugin builds, told apart by its opening line: the platform's own folding adds
+            // regions over the same file, and asking this builder about one of those asks about a line no
+            // marker is on.
+            if (!opensOnMarker(document, region.getRange().getStartOffset())) {
+                continue;
+            }
+
+            // What the editor shows, and the answer the other path would give, which have to be the same
+            // thing: a region the platform builds without a placeholder is answered from the builder instead.
+            String shown = region.getPlaceholderText();
+
+            assertNotNull("a region on a marker has a placeholder", shown);
+            assertEquals("the two ways of asking disagree", shown,
+                    builder.getPlaceholderText(file.getNode(), region.getRange()));
+            placeholder = shown;
+        }
+
+        assertNotNull("no region opens on a marker", placeholder);
+
+        return placeholder;
+    }
+
+    private static boolean opensOnMarker(Document document, int offset) {
+        int line = document.getLineNumber(offset);
+        String text = document.getCharsSequence()
+                .subSequence(document.getLineStartOffset(line), document.getLineEndOffset(line)).toString();
+
+        return text.contains("//$$") || text.contains("/*$$");
+    }
+
+    /**

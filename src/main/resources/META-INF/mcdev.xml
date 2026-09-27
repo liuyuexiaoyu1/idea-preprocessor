@@ -1,0 +1,21 @@
+<idea-plugin>
+  <extensions defaultExtensionNs="com.demonwav.minecraft-dev">
+    <!-- The template the wizard lists. Named so the reader can tell it apart from the ones the platform
+         ships with; the key is what a saved template repository refers to. -->
+    <creatorTemplateProvider key="liuyue_multi_version"
+                             implementation="rems.idea.mixincompletion.template.MultiVersionTemplateProvider" />
+    <!-- What the template names as its finalizer. It lays the repository out by the chosen version range and
+         points the build at the preprocessor jitpack built most recently. -->
+    <creatorFinalizer type="liuyue_template"
+                      implementation="rems.idea.mixincompletion.template.LiuyueTemplateFinalizer" />
+  </extensions>
+  <!-- The wizard does not ask every provider what it has; it asks the provider named by each entry in its own
+       list of repositories. The key above is in no entry by default, so the entry is added here - without it
+       the provider is never called and the template is never offered, silently.
+       Declared in this file rather than in the main descriptor because it names classes that only exist while
+       Minecraft Development does. -->
+  <extensions defaultExtensionNs="com.intellij">
+    <applicationInitializedListener
+        implementation="rems.idea.mixincompletion.template.MultiVersionTemplateRepoInstaller" />
+  </extensions>
+</idea-plugin>

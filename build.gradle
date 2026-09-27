@@ -1,13 +1,48 @@
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+
 plugins {
     id 'java'
+    id 'org.jetbrains.intellij.platform' version '2.19.0'
 }
 
 group = 'rems.idea'
-version = '0.31.33'
+version = '0.32.59'
 
-def ideaHome = providers.gradleProperty('ideaHome')
-        .orElse('C:/Program Files/JetBrains/IntelliJ IDEA 2026.1')
-        .get()
+// The IDE used for compilation is resolved and downloaded by the plugin below, so switching the target
+// platform is a one-line change here instead of pointing at a local installation.
+repositories {
+    mavenCentral()
+    intellijPlatform {
+        defaultRepositories()
+    }
+}
+
+dependencies {
+    intellijPlatform {
+        // 2025.3 is the first release with no separate Community download, so the unified distribution is
+        // what a build against it names.
+        intellijIdea('2025.3')
+        // The plugin source uses the Java PSI API, which ships as a bundled plugin rather than as part
+        // of the platform itself, so it has to be named explicitly.
+        bundledPlugin('com.intellij.java')
+        // Resolution is the part of this plugin that cannot be reasoned about from the source: what a name
+        // in a fragment resolves to depends on the context the fragment is built with, and every mistake
+        // made here so far was a guess about that. The fixture runs the real engine, so the answer is read
+        // rather than argued.
+        testFramework TestFrameworkType.Platform.INSTANCE
+        // The project wizard a multi-version template belongs in is Minecraft Development's, and it is an
+        // extension point of that plugin rather than of the platform - so its API is what the template is
+        // written against. Pinned rather than left to the platform's choice of build: the template builds
+        // descriptors out of that plugin's classes, and one of them changed shape between releases. Asking
+        // for a version range instead cost a release where the wizard offered nothing at all, with a
+        // NoSuchMethodError in the log as the only sign of why.
+        plugin('com.demonwav.minecraft-dev', '2025.3-1.8.22')
+    }
+    // The IDE carries ASM but exposes it through no named library, so it is taken from Maven for
+    // compilation only; at runtime the platform's own copy is the one actually loaded.
+    compileOnly 'org.ow2.asm:asm:9.7.1'
+    testImplementation 'junit:junit:4.13.2'
+}
 
 java {
     toolchain {
@@ -15,18 +50,15 @@ java {
     }
 }
 
-dependencies {
-    compileOnly fileTree("${ideaHome}/lib") { include '*.jar' }
-    compileOnly fileTree("${ideaHome}/plugins/java/lib") { include '*.jar' }
-    compileOnly fileTree("${ideaHome}/plugins/java/lib/modules") { include '*.jar' }
-}
-
-tasks.register('buildPlugin', Zip) {
-    dependsOn jar
-    archiveFileName = "idea-preprocessor-${version}.zip"
-    destinationDirectory = layout.buildDirectory.dir('distributions')
-    into('idea-preprocessor/lib') {
-        from tasks.jar
+// Kept in step with META-INF/plugin.xml; both describe the oldest platform the plugin loads on.
+//
+// 253 rather than 243: the Minecraft Development release this plugin is written against is built for 2025.3,
+// and a platform older than that would load this plugin and then fail to link the template classes.
+intellijPlatform {
+    pluginConfiguration {
+        ideaVersion {
+            sinceBuild = '253'
+        }
     }
 }
 
@@ -35,3 +67,55 @@ tasks.withType(JavaCompile).configureEach {
     options.release = 21
 }
 
+// Indexing the settings UI needs a full IDE instance, which is not available here and is not needed to
+// produce the distribution.
+tasks.matching { it.name == 'buildSearchableOptions' }.configureEach {
+    enabled = false
+}
+
+// A fresh sandbox has its own empty configuration, so the theme and the project list have to be set up
+// again every time it is rebuilt. Copying the main installation's settings first keeps the test instance
+// familiar.
+//
+// The copy is deliberately narrow. Only the settings are taken, never the plugin list, because a sandbox
+// exists to run the plugin under development and anything else in there is a version mismatch waiting to
+// happen. The caches are left alone too, being tied to the build that produced them.
+//
+// Point at a different installation with -PmainIdeConfig=<path to its config directory>.
+// The directory name follows the installation's own convention, IntelliJIdea<version>, and it is matched
+// to the sandbox's platform on purpose: settings written by the same version are the ones it understands.
+def mainIdeConfigDir = providers.gradleProperty('mainIdeConfig').orElse(
+        providers.environmentVariable('APPDATA')
+                .map { "${it}/JetBrains/IntelliJIdea2025.3" }
+                .orElse(''))
+def syncSandboxSettings = tasks.register('syncSandboxSettings', Copy) {
+    onlyIf { new File(mainIdeConfigDir.get(), 'options').isDirectory() }
+    from(mainIdeConfigDir.map { "${it}/options" })
+    into(layout.buildDirectory.dir('idea-sandbox/config/options'))
+    // Per-install state: copying it would point the sandbox at paths that belong to the other instance.
+    exclude('other.xml', 'updates.xml')
+}
+
+// A sandbox otherwise holds the platform and nothing else, but what is being tested reacts to the editor
+// theme and to the bracket colouring, so those two are carried in as runtime dependencies. Override the
+// list with -PsandboxPlugins=<comma separated directory names>, or pass an empty value for none.
+def sandboxPlugins = providers.gradleProperty('sandboxPlugins')
+        .orElse('falcon-jetbrains-themes,intellij-rainbow-brackets-lite')
+        .get()
+        .split(',')
+        .collect { it.trim() }
+        .findAll { !it.isEmpty() }
+
+def syncSandboxPlugins = tasks.register('syncSandboxPlugins', Copy) {
+    onlyIf { new File(mainIdeConfigDir.get(), 'plugins').isDirectory() }
+    sandboxPlugins.each { name ->
+        from(mainIdeConfigDir.map { "${it}/plugins/${name}" }) {
+            into(name)
+        }
+    }
+    into(layout.buildDirectory.dir('idea-sandbox/plugins'))
+}
+
+tasks.matching { it.name == 'runIde' }.configureEach {
+    dependsOn(syncSandboxSettings, syncSandboxPlugins)
+}

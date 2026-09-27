@@ -1,56 +1,47 @@
 package rems.idea.mixincompletion;
 
 import com.intellij.openapi.options.Configurable;
-import org.jetbrains.annotations.Nls;
-import org.jetbrains.annotations.Nullable;
-
+import java.awt.BorderLayout;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
-import java.awt.BorderLayout;
+import org.jetbrains.annotations.Nls;
+import org.jetbrains.annotations.Nullable;
 
 public final class MixinCompletionConfigurable implements Configurable {
-    private JCheckBox autoInsert;
+   private JCheckBox autoInsert;
 
-    @Override
-    public @Nls String getDisplayName() {
-        return "Preprocessor Support";
-    }
+   public @Nls String getDisplayName() {
+      return "Preprocessor Support";
+   }
 
-    @Override
-    public @Nullable JComponent createComponent() {
-        autoInsert = new JCheckBox("在主版本不生效的预处理分支中换行时自动插入 //$$");
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.add(autoInsert, BorderLayout.NORTH);
-        reset();
-        return panel;
-    }
+   public @Nullable JComponent createComponent() {
+      this.autoInsert = new JCheckBox("在主版本不生效的预处理分支中换行时自动插入 //$$");
+      JPanel panel = new JPanel(new BorderLayout());
+      panel.add(this.autoInsert, "North");
+      this.reset();
+      return panel;
+   }
 
-    @Override
-    public boolean isModified() {
-        return autoInsert != null
-                && autoInsert.isSelected()
-                != MixinCompletionSettings.getInstance().isAutoInsertPreprocessorComment();
-    }
+   public boolean isModified() {
+      return this.autoInsert != null && this.autoInsert.isSelected() != MixinCompletionSettings.getInstance().isAutoInsertPreprocessorComment();
+   }
 
-    @Override
-    public void apply() {
-        if (autoInsert != null) {
-            MixinCompletionSettings.getInstance()
-                    .setAutoInsertPreprocessorComment(autoInsert.isSelected());
-        }
-    }
+   public void apply() {
+      if (this.autoInsert != null) {
+         MixinCompletionSettings.getInstance().setAutoInsertPreprocessorComment(this.autoInsert.isSelected());
+      }
 
-    @Override
-    public void reset() {
-        if (autoInsert != null) {
-            autoInsert.setSelected(MixinCompletionSettings.getInstance()
-                    .isAutoInsertPreprocessorComment());
-        }
-    }
+   }
 
-    @Override
-    public void disposeUIResources() {
-        autoInsert = null;
-    }
+   public void reset() {
+      if (this.autoInsert != null) {
+         this.autoInsert.setSelected(MixinCompletionSettings.getInstance().isAutoInsertPreprocessorComment());
+      }
+
+   }
+
+   public void disposeUIResources() {
+      this.autoInsert = null;
+   }
 }

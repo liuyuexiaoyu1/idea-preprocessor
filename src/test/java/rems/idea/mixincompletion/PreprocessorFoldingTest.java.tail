@@ -1,0 +1,75 @@
+    private Editor editorWithCarriedCode() {
+        myFixture.configureByText("Fold.java", """
+                package p;
+                public class Fold {
+                    static void use() {
+                        //$$ int one = 1;
+                        //$$ int two = 2;
+                        int live = 3;
+                    }
+                }
+                """);
+
+        return myFixture.getEditor();
+    }
+
+    /**
+     * Folds a range of the document, the way the builder's descriptors are turned into regions.
+     *
+     * <p>By line rather than by searching for the text: the region a marker describes starts at the first
+     * character of its line and ends at the end of the last line it covers, which is what the builder does.
+     */
+    private static FoldRegion foldLines(Editor editor, int firstLine, int lastLine, boolean expanded) {
+        Document document = editor.getDocument();
+        int lineEnd = document.getLineEndOffset(firstLine);
+        int start = document.getLineStartOffset(firstLine);
+        String opening;
+
+        while (start < lineEnd && Character.isWhitespace(document.getCharsSequence().charAt(start))) {
+            start++;
+        }
+
+        opening = document.getText(new TextRange(start, lineEnd));
+
+        assertTrue("the line carries a marker, but reads: " + opening,
+                opening.startsWith("//$$") || opening.startsWith("/*$$"));
+
+        int end = document.getLineEndOffset(lastLine);
+        // Final copies: the lambda below runs in a batch operation and cannot read a local that was moved.
+        int from = start;
+        int to = end;
+        FoldRegion[] holder = new FoldRegion[1];
+
+        editor.getFoldingModel().runBatchFoldingOperation(() -> {
+            holder[0] = editor.getFoldingModel().addFoldRegion(from, to, "//$$ inactive line 2");
+            holder[0].setExpanded(expanded);
+        });
+
+        assertNotNull("the region was added", holder[0]);
+
+        return holder[0];
+    }
+
+    /** The platform only lets a region be opened or closed from inside a batch operation. */
+    private static void setExpanded(Editor editor, FoldRegion region, boolean expanded) {
+        editor.getFoldingModel().runBatchFoldingOperation(() -> region.setExpanded(expanded));
+    }
+
+    /**
+     * A click at an offset.
+     *
+     * <p>Without a point on screen: a test editor is not laid out, so there is nothing to hit-test, and the
+     * rules that read the document are the ones under test here.
+     */
+    private static void click(Editor editor, int offset, FoldRegion collapsed) {
+        PreprocessorFoldToggleHandler.toggle(editor, null, offset);
+    }
+
+    private static int offsetOf(Editor editor, String needle) {
+        int offset = editor.getDocument().getText().indexOf(needle);
+
+        assertTrue("the document holds " + needle, offset >= 0);
+
+        return offset;
+    }
+}
